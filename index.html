@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Li-Fi Bridge - Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #ffffff;
+            color: #202124;
+            transition: background-color 0.1s;
+        }
+
+        .g-card {
+            box-shadow: 0 1px 6px rgba(32,33,36,.28);
+            border-radius: 8px;
+            background: white;
+        }
+
+        .g-btn {
+            background-color: #f8f9fa;
+            border: 1px solid #f8f9fa;
+            border-radius: 4px;
+            color: #3c4043;
+            font-size: 14px;
+            margin: 11px 4px;
+            padding: 0 16px;
+            line-height: 27px;
+            height: 36px;
+            min-width: 54px;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .g-btn:hover {
+            box-shadow: 0 1px 1px rgba(0,0,0,.1);
+            background-color: #f8f9fa;
+            border: 1px solid #dadce0;
+            color: #202124;
+        }
+
+        .g-search-bar {
+            border: 1px solid #dfe1e5;
+            border-radius: 24px;
+            transition: box-shadow 0.1s;
+        }
+
+        .g-search-bar:hover, .g-search-bar:focus-within {
+            background-color: #fff;
+            box-shadow: 0 1px 6px rgba(32,33,36,.28);
+            border-color: rgba(223,225,229,0);
+        }
+
+        .fullscreen-viewport {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: white;
+            z-index: 100;
+        }
+
+        /* Pulse animation for data transmission */
+        @keyframes optical-pulse {
+            0% { background-color: rgba(66, 133, 244, 0.05); }
+            50% { background-color: rgba(66, 133, 244, 0.3); }
+            100% { background-color: rgba(66, 133, 244, 0.05); }
+        }
+        .transmitting {
+            animation: optical-pulse 0.3s infinite;
+        }
+
+        #camera-preview { transform: scaleX(-1); border-radius: 24px; }
+        
+        .signal-meter {
+            height: 4px;
+            width: 100%;
+            background: #f1f3f4;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .signal-fill {
+            height: 100%;
+            background: #34A853;
+            transition: width 0.2s;
+        }
+
+        .error-shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header id="main-header" class="flex justify-between items-center px-4 h-14 text-sm text-[#70757a]">
+        <div class="flex gap-4">
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="connection-badge" class="hidden items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[#34A853] font-bold text-[10px]">
+                <span class="w-1.5 h-1.5 bg-[#34A853] rounded-full animate-ping"></span>
+                DUPLEX OPTICAL LINK ACTIVE
+            </div>
+            
+        </div>
+    </header>
+
+    <main id="app" class="flex-1 flex flex-col relative">
+        
+        <!-- Role Selection -->
+        <div id="setup-view" class="absolute inset-0 z-50 bg-white flex flex-col items-center justify-center p-8">
+            <div class="mb-8 text-center">
+                <span class="text-7xl font-medium tracking-tight">
+                    <span class="text-[#ffff00]">L</span><span class="text-[#00ff00]">i</span><span class="text-[#FBBC05]">-</span><span class="text-[#ffff00]">F</span><span class="text-[#34A853]">i</span>
+                </span>
+                <p class="text-gray-600 mt-4 font-light">A site that transforms Wi-Fi into light. Only Works on phones.</p>
+                <p>Li-Fi™ is a Vsites™ site.</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button onclick="setRole('receiver')" class="g-btn h-12 px-8 font-medium">Receiver Browser</button>
+                <button onclick="setRole('gateway')" class="g-btn h-12 px-8 font-medium">Li-Fi Gateway</button>
+            </div>
+        </div>
+
+        <!-- Receiver Interface -->
+        <div id="receiver-ui" class="hidden flex-1 flex flex-col items-center pt-20">
+            <div id="search-container" class="w-full max-w-[584px] px-4 text-center">
+                <div class="flex justify-center mb-8">
+                    <span class="text-7xl font-medium tracking-tight">
+                        <span class="text-[#ffff00]">L</span><span class="text-[#00ff00]">i</span><span class="text-[#FBBC05]">-</span><span class="text-[#ffff00]">F</span><span class="text-[#34A853]">i</span>
+                    </span>
+                </div>
+
+                <div class="g-search-bar flex items-center px-4 py-3 mb-4">
+                    <svg class="w-5 h-5 text-[#9aa0a6] mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input id="browser-url" type="text" 
+                        onkeydown="if(event.key==='Enter') startOpticalHandshake()"
+                        value="https://www.youtube.com/embed/dQw4w9WgXcQ" 
+                        placeholder="Paste URL and hit Enter..." 
+                        class="flex-1 outline-none text-base">
+                </div>
+
+                <div id="receiver-signal-panel" class="mb-8 opacity-0 transition-opacity duration-300">
+                    <div class="flex justify-between text-[10px] font-bold text-gray-400 uppercase mb-1">
+                        <span id="receiver-status-text">Seeking Gateway...</span>
+                        <span id="receiver-signal-val">0%</span>
+                    </div>
+                    <div class="signal-meter"><div id="receiver-signal-fill" class="signal-fill" style="width: 0%"></div></div>
+                </div>
+
+                <div class="flex justify-center gap-3">
+                    <button onclick="startOpticalHandshake()" class="g-btn">Start</button>
+                </div>
+            </div>
+
+            <!-- Fullscreen Viewport -->
+            <div id="result-view" class="hidden fullscreen-viewport flex flex-col">
+                <div id="viewport-content" class="flex-1 bg-black relative">
+                    <!-- Loader / Handshake Overlay -->
+                    <div id="loader" class="absolute inset-0 bg-white flex flex-col items-center justify-center z-50">
+                        <div id="loader-spinner" class="w-12 h-12 border-4 border-t-[#4285f4] border-[#f1f3f4] rounded-full animate-spin mb-4"></div>
+                        <div id="error-icon" class="hidden mb-4 text-[#EA4335]">
+                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        </div>
+                        <p id="handshake-label" class="text-sm font-medium text-gray-600">Pinging Gateway...</p>
+                        <p id="tx-log" class="text-xs text-blue-500 mt-2 font-mono uppercase">WAITING_FOR_CTS</p>
+                        <button id="retry-btn" onclick="backToSearch()" class="hidden mt-6 g-btn px-6 border-[#dadce0]">Try Again</button>
+                    </div>
+                    
+                    <div id="exit-btn" class="absolute top-4 right-4 z-[60] bg-black/50 text-white p-2 rounded-full cursor-pointer hover:bg-black" onclick="backToSearch()">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gateway Interface -->
+        <div id="gateway-ui" class="hidden flex-1 flex flex-col max-w-2xl mx-auto w-full p-8">
+            <div class="mb-8">
+                <h2 class="text-2xl font-normal text-gray-800">Bidirectional Gateway</h2>
+                <p class="text-sm text-gray-500">Listening for Receiver handshake and providing backhaul</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="relative">
+                    <video id="camera-preview" autoplay playsinline class="w-full aspect-square object-cover shadow-lg"></video>
+                    <div class="absolute top-4 right-4 flex items-center gap-2 bg-white/90 px-3 py-1 rounded-full text-xs font-medium border border-gray-200">
+                        <span id="scan-dot" class="w-2 h-2 bg-gray-400 rounded-full"></span>
+                        <span id="scan-text">READY</span>
+                    </div>
+                </div>
+                
+                <div class="g-card p-6 flex flex-col">
+                    <div class="flex justify-between items-center mb-4 border-b pb-2">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Signal Processing</span>
+                        <span id="lux-meter" class="text-xs font-mono text-blue-600">LUX: 0</span>
+                    </div>
+                    <div id="gateway-logs" class="flex-1 space-y-3 font-mono text-[10px] overflow-y-auto max-h-[300px]">
+                        <div class="text-gray-400 italic">Waiting for Receiver ping (RTS)...</div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t">
+                        <div class="flex justify-between text-[10px] font-bold text-gray-400 uppercase mb-1">
+                            <span>Optical Link Strength</span>
+                            <span id="gateway-signal-val">0%</span>
+                        </div>
+                        <div class="signal-meter"><div id="gateway-signal-fill" class="signal-fill" style="width: 0%"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <canvas id="proc-canvas" class="hidden"></canvas>
+
+    <script>
+        let currentRole = null;
+        let track = null;
+        let isTransmitting = false;
+        let handshakeActive = false;
+        let bridgeActive = false;
+        let keepAliveInterval = null;
+        
+        const HANDSHAKE_TIMEOUT_MS = 10000; // 10 seconds to find backend
+        const RTS_SIGNAL = "101010";
+        const CTS_SIGNAL = "110011";
+
+        function setRole(role) {
+            currentRole = role;
+            document.getElementById('setup-view').classList.add('hidden');
+            if (role === 'receiver') {
+                document.getElementById('receiver-ui').classList.remove('hidden');
+                initFlashlight();
+                initReceiverCamera();
+            } else {
+                document.getElementById('gateway-ui').classList.remove('hidden');
+                initCamera();
+            }
+        }
+
+        async function initFlashlight() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                track = stream.getVideoTracks()[0];
+            } catch (err) { console.warn("Flashlight access denied."); }
+        }
+
+        async function startOpticalHandshake() {
+            if (handshakeActive || isTransmitting) return;
+            
+            const resultView = document.getElementById('result-view');
+            const handshakeLabel = document.getElementById('handshake-label');
+            const signalPanel = document.getElementById('receiver-signal-panel');
+            const txLog = document.getElementById('tx-log');
+            
+            resultView.classList.remove('hidden');
+            signalPanel.classList.remove('opacity-0');
+            document.getElementById('main-header').classList.add('hidden');
+            
+            handshakeActive = true;
+            handshakeLabel.textContent = "Pinging Gateway...";
+            txLog.textContent = "WAITING_FOR_CTS";
+            
+            const startTime = Date.now();
+            
+            // Loop RTS until response or timeout
+            while(handshakeActive) {
+                // Check for Timeout
+                if (Date.now() - startTime > HANDSHAKE_TIMEOUT_MS) {
+                    showHandshakeError();
+                    break;
+                }
+
+                await pulseSignal(RTS_SIGNAL);
+                await new Promise(r => setTimeout(r, 400));
+                if (bridgeActive) break;
+            }
+        }
+
+        function showHandshakeError() {
+            handshakeActive = false;
+            const label = document.getElementById('handshake-label');
+            const txLog = document.getElementById('tx-log');
+            const spinner = document.getElementById('loader-spinner');
+            const errorIcon = document.getElementById('error-icon');
+            const retryBtn = document.getElementById('retry-btn');
+            const loader = document.getElementById('loader');
+
+            loader.classList.add('error-shake');
+            spinner.classList.add('hidden');
+            errorIcon.classList.remove('hidden');
+            retryBtn.classList.remove('hidden');
+            
+            label.textContent = "Error To Connect: No Backend Found";
+            label.classList.add('text-[#EA4335]', 'text-lg', 'font-bold');
+            txLog.textContent = "OPTICAL_TIMEOUT_0x04";
+            txLog.classList.replace('text-blue-500', 'text-gray-400');
+        }
+
+        async function pulseSignal(bits) {
+            for (let bit of bits) {
+                await toggleFlash(bit === '1');
+                await new Promise(r => setTimeout(r, 60));
+            }
+            await toggleFlash(false);
+        }
+
+        async function initReceiverCamera() {
+            const canvas = document.getElementById('proc-canvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user', frameRate: { ideal: 60 } } 
+                });
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+                
+                let bitBuffer = "";
+                const scan = () => {
+                    if (!handshakeActive && !bridgeActive) { requestAnimationFrame(scan); return; }
+                    ctx.drawImage(video, 0, 0, 30, 30);
+                    const pixels = ctx.getImageData(0,0,30,30).data;
+                    let b = 0; for(let i=0; i<pixels.length; i+=4) b += (pixels[i]+pixels[i+1]+pixels[i+2])/3;
+                    const avg = b / 900;
+                    
+                    updateSignalMeter('receiver', avg);
+
+                    if (handshakeActive) {
+                        const bit = avg > 180 ? "1" : "0";
+                        if (bit === "1" && !bitBuffer.endsWith(bit)) {
+                            bitBuffer += bit;
+                            if (bitBuffer.includes(CTS_SIGNAL)) {
+                                confirmHandshake();
+                                bitBuffer = "";
+                            }
+                        } else if (bit === "0") {
+                            bitBuffer = "";
+                        }
+                    }
+                    requestAnimationFrame(scan);
+                };
+                scan();
+            } catch(e) {}
+        }
+
+        function confirmHandshake() {
+            if (!handshakeActive) return;
+            handshakeActive = false;
+            bridgeActive = true;
+            document.getElementById('handshake-label').textContent = "Handshake Successful!";
+            document.getElementById('tx-log').textContent = "SYNCING_DATA...";
+            initiateDataTransfer();
+        }
+
+        async function initiateDataTransfer() {
+            const urlInput = document.getElementById('browser-url').value;
+            const txLog = document.getElementById('tx-log');
+            
+            isTransmitting = true;
+            const binary = urlInput.split('').map(c => c.charCodeAt(0).toString(2).padStart(8,'0')).join('');
+            const packet = "11110000" + binary + "00001111";
+            
+            for (let i = 0; i < packet.length; i++) {
+                await toggleFlash(packet[i] === '1');
+                txLog.textContent = `DATA_TX: ${Math.round((i/packet.length)*100)}%`;
+                await new Promise(r => setTimeout(r, 50));
+            }
+            
+            await toggleFlash(false);
+            isTransmitting = false;
+            startKeepAlive();
+            renderSite(urlInput);
+        }
+
+        // --- GATEWAY ENGINE ---
+        async function initCamera() {
+            const video = document.getElementById('camera-preview');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment', frameRate: { ideal: 60 } } 
+                });
+                video.srcObject = stream;
+                processOpticalGateway(video);
+            } catch (err) {}
+        }
+
+        function processOpticalGateway(video) {
+            const canvas = document.getElementById('proc-canvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const luxMeter = document.getElementById('lux-meter');
+            const scanDot = document.getElementById('scan-dot');
+            const scanText = document.getElementById('scan-text');
+            
+            let lastBit = null;
+            let bitBuffer = "";
+
+            function scan() {
+                if (video.paused || video.ended) return;
+                canvas.width = 30; canvas.height = 30;
+                ctx.drawImage(video, video.videoWidth/2-15, video.videoHeight/2-15, 30, 30, 0, 0, 30, 30);
+                const pixels = ctx.getImageData(0,0,30,30).data;
+                let b = 0; for(let i=0; i<pixels.length; i+=4) b += (pixels[i]+pixels[i+1]+pixels[i+2])/3;
+                const avg = b / 900;
+                
+                luxMeter.textContent = `LUX: ${Math.round(avg)}`;
+                updateSignalMeter('gateway', avg);
+
+                const bit = avg > 185 ? "1" : "0";
+                
+                if (bit === "1") {
+                    scanDot.className = "w-2 h-2 bg-blue-500 animate-ping";
+                    scanText.textContent = "SIGNAL FOUND";
+                }
+
+                if (bit !== lastBit) {
+                    bitBuffer += bit;
+                    if (bitBuffer.includes(RTS_SIGNAL)) {
+                        handleRTS();
+                        bitBuffer = "";
+                    }
+                    if (bitBuffer.endsWith("00001111")) {
+                        const packet = bitBuffer.split("11110000").pop().replace("00001111", "");
+                        if (packet.length % 8 === 0) handleRequest(packet);
+                        bitBuffer = "";
+                    }
+                    lastBit = bit;
+                }
+                requestAnimationFrame(scan);
+            }
+            requestAnimationFrame(scan);
+        }
+
+        async function handleRTS() {
+            const logs = document.getElementById('gateway-logs');
+            if (isTransmitting) return;
+            
+            const div = document.createElement('div');
+            div.className = "text-[#ffff00] font-bold animate-pulse";
+            div.textContent = ">>> RTS DETECTED. SENDING CTS RESPONSE...";
+            logs.prepend(div);
+            
+            document.body.classList.add('transmitting');
+            await new Promise(r => setTimeout(r, 500));
+            document.body.classList.remove('transmitting');
+        }
+
+        function updateSignalMeter(side, lux) {
+            const val = Math.min(100, Math.max(0, (lux - 50) * 0.6));
+            const fill = document.getElementById(`${side}-signal-fill`);
+            const text = document.getElementById(`${side}-signal-val`);
+            if (fill) fill.style.width = `${val}%`;
+            if (text) text.textContent = `${Math.round(val)}%`;
+        }
+
+        function backToSearch() {
+            location.reload();
+        }
+
+        async function toggleFlash(state) {
+            if (track) {
+                try { await track.applyConstraints({ advanced: [{ torch: state }] }); } catch(e) {}
+            }
+            if (state) document.body.classList.add('transmitting');
+            else document.body.classList.remove('transmitting');
+        }
+
+        function startKeepAlive() {
+            document.getElementById('connection-badge').classList.remove('hidden');
+            keepAliveInterval = setInterval(async () => {
+                if (!isTransmitting) {
+                    await toggleFlash(true);
+                    await new Promise(r => setTimeout(r, 20));
+                    await toggleFlash(false);
+                }
+            }, 2000);
+        }
+
+        function renderSite(url) {
+            const viewport = document.getElementById('viewport-content');
+            const loader = document.getElementById('loader');
+            let finalUrl = url;
+            if (url.includes('youtube.com') && !url.includes('embed')) {
+                const vidId = url.split('v=')[1]?.split('&')[0];
+                if (vidId) finalUrl = `https://www.youtube.com/embed/${vidId}?autoplay=1&mute=0`;
+            }
+            setTimeout(() => {
+                const iframe = document.createElement('iframe');
+                iframe.src = finalUrl;
+                iframe.className = "w-full h-full border-none";
+                iframe.allow = "autoplay; fullscreen; encrypted-media;";
+                viewport.appendChild(iframe);
+                loader.classList.add('hidden');
+            }, 1000);
+        }
+
+        function handleRequest(bin) {
+            let text = "";
+            for (let i = 0; i < bin.length; i += 8) text += String.fromCharCode(parseInt(bin.substr(i, 8), 2));
+            const logs = document.getElementById('gateway-logs');
+            const div = document.createElement('div');
+            div.className = "p-3 bg-blue-50 border border-blue-100 rounded-lg animate-in fade-in";
+            div.innerHTML = `<div class="text-[#34A853] font-bold">TUNNEL ESTABLISHED</div><div class="text-xs mt-1 truncate">${text}</div>`;
+            logs.prepend(div);
+        }
+    </script>
+</body>
+</html>
+Copyright © 2026 Li-Fi™. All rights reserved. "Vsites" and the Li-Fi logo are trademarks of Vsites.
